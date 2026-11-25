@@ -177,3 +177,13 @@ describe("primary retry", () => {
     expect(r.model).toBe("primary");
   });
 });
+
+describe("CTA and targeting guards", () => {
+  it("adds the CTA when the opener has no question", () => {
+    const v = verifyOutput({ ...goodOutput, email: { ...goodOutput.email, opener: "Hi Priya,\n\nYour $19 plan is a smart wedge for bootstrapped founders who watch every dollar and need to keep churn low.\n\nAlex", cta: "Worth a look?" } }, sources, "Alex");
+    expect(v.body).toMatch(/Worth a look\?\n\nAlex$/);
+  });
+  it("rejects openers that mention our internal MRR band", () => {
+    expect(() => verifyOutput({ ...goodOutput, email: { ...goodOutput.email, opener: "Hi Priya,\n\nAt the $10K-$50K MRR stage, founders juggle a lot of things and the numbers slip through the cracks.\n\nWorth a look?" } }, sources, "Alex")).toThrow();
+  });
+});

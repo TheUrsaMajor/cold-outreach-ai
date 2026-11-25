@@ -194,7 +194,7 @@ const SOCIAL_PATTERNS: [SocialKind, RegExp][] = [
   ["instagram", /^https?:\/\/(www\.)?instagram\.com\/(?!p\/|reel\/|explore)[A-Za-z0-9_.]+/i],
   ["github", /^https?:\/\/(www\.)?github\.com\/[A-Za-z0-9-]+\/?$/i],
   ["youtube", /^https?:\/\/(www\.)?youtube\.com\/(@|c\/|channel\/|user\/)[^?#]+/i],
-  ["calendly", /^https?:\/\/(www\.)?(calendly\.com|cal\.com)\/[^?#]+/i],
+  ["calendly", /^https?:\/\/(www\.)?(calendly\.com|cal\.com)\/(?!(help|pricing|blog|features|resources|integrations|signup|login|about|careers|solutions|enterprise|customers|product|legal|security|docs|api|apps|teams|pages|enterprise|partners|community|download|privacy|terms)(\/|$))[A-Za-z0-9_.-]+(\/[A-Za-z0-9_.-]+)?\/?$/i],
   ["discord", /^https?:\/\/(www\.)?(discord\.gg|discord\.com\/invite)\/[^?#]+/i],
 ];
 

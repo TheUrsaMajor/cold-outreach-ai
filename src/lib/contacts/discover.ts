@@ -290,6 +290,8 @@ export async function discoverContacts(
     .sort((a, b) => Number(b.isContact) - Number(a.isContact));
   for (const f of formPages.slice(0, 3)) addOther({ kind: "contact_form", value: f.url, label: f.isContact ? "Contact form" : "Form on the website", rank: f.isContact ? 300 : 306, confidence: f.isContact ? "medium" : "low", sourceUrl: f.url });
   for (const p of ok) {
+    // Social links on comparison / blog / deep pages often point at other companies.
+    if (p.priority < 50) continue;
     for (const s of p.extract!.socials) {
       const founderLinked = s.personal && founders.find((f) => s.url.toLowerCase().includes(nameTokens(f.name).first) && s.url.toLowerCase().includes(nameTokens(f.name).last));
       const base = { calendly: 305, linkedin: 310, twitter: 320, github: 340, discord: 345, facebook: 350, instagram: 355, youtube: 360 }[s.kind] ?? 370;

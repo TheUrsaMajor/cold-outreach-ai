@@ -133,6 +133,16 @@ export function verifyOutput(raw: unknown, sources: SourceDoc[], senderFirstName
     .replace(/[\u2010\u2011\u2012]/g, "-")
     .replace(/\u00a0/g, " ");
   body = body.replace(/\*\*(.+?)\*\*/g, "$1").replace(/\[(.+?)\]\((.+?)\)/g, "$1").replace(/https?:\/\/\S+/g, "").replace(/[ \t]+\n/g, "\n").trim();
+  // Guarantee a call to action: if the body has no question, add the model's CTA before the sign-off.
+  const cta = out.email.cta.trim();
+  if (!body.includes("?") && cta) {
+    const lines = body.split("\n");
+    const last = lines[lines.length - 1]?.trim() ?? "";
+    const signOff = last && last.split(/\s+/).length <= 3 && !/[.?!]$/.test(last);
+    body = signOff ? `${lines.slice(0, -1).join("\n").trim()}\n\n${cta}\n\n${last}` : `${body}\n\n${cta}`;
+  }
+  // Never leak the targeting band into an email.
+  if (/\$?10k\s*[-–to]+\s*\$?50k/i.test(body)) throw new LlmError("Opener mentions our internal MRR targeting band", "invalid_output");
   const first = senderFirstName.trim();
   if (first && !new RegExp(`\\b${first.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*$`).test(body)) body = `${body}\n\n${first}`;
   const words = body.split(/\s+/).filter(Boolean).length;
@@ -210,7 +220,7 @@ export async function generateOutreach(opts: GenerateOptions): Promise<Generatio
     const user = userPrompt({ domain: opts.domain, sources, founders: opts.founders, recipientName: opts.recipientName, tone: opts.tone, extraInstructions: opts.extraInstructions });
     // Slow "thinking" models get more time when they're first; later fallbacks get what's left.
     const isLast = i === chain.length - 1;
-    const timeoutMs = Math.max(3000, Math.min(isLast ? remaining - 1000 : spec.provider === "gemini" && !/lite/.test(spec.model) ? 25_000 : 18_000, remaining - 3000));
+    const timeoutMs = Math.max(3000, Math.min(isLast ? remaining - 1000 : spec.provider === "gemini" && !/lite/.test(spec.model) ? 20_000 : 18_000, remaining - 3000));
     const t0 = Date.now();
     try {
       const res = await callModel(spec, { system: sys, user, temperature: 0.7, maxOutputTokens: spec.provider === "groq" ? 2000 : 3000, timeoutMs });

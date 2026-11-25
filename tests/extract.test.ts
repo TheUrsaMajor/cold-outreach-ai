@@ -79,3 +79,12 @@ describe("helpers", () => {
     expect(classifySocial("https://calendly.com/jane/30min")?.kind).toBe("calendly");
   });
 });
+
+describe("booking links", () => {
+  it("accepts personal booking links and rejects vendor marketing pages", () => {
+    expect(classifySocial("https://calendly.com/jane-doe/intro")?.kind).toBe("calendly");
+    expect(classifySocial("https://cal.com/derrick")?.kind).toBe("calendly");
+    expect(classifySocial("https://calendly.com/pricing")).toBeNull();
+    expect(classifySocial("https://calendly.com/help/payments-faq")).toBeNull();
+  });
+});
