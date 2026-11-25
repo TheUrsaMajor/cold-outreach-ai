@@ -41,6 +41,8 @@ const GENERIC_LOCALS: Record<string, number> = {
   hello: 20, hi: 21, hey: 22, team: 23, contact: 24, contactus: 24, info: 26, sales: 27, partnerships: 28, partners: 28, business: 29, bd: 29,
   enquiries: 30, inquiries: 30, office: 31, general: 31, mail: 32, admin: 34, support: 40, help: 41, care: 42, customerservice: 42, success: 43,
   press: 50, media: 50, pr: 50, marketing: 45, careers: 60, jobs: 60, hr: 60, talent: 60,
+  concierge: 30, newsletter: 65, newsletters: 65, drafts: 75, notifications: 75, updates: 60, events: 55, community: 45, feedback: 45, ops: 35, operations: 35,
+  orders: 60, shop: 60, store: 60, booking: 40, bookings: 40, studio: 25, dev: 50, developers: 50, api: 70, status: 80, webmaster: 80, accessibility: 80,
   billing: 70, accounts: 70, invoices: 72, finance: 70, privacy: 80, legal: 80, dpo: 82, gdpr: 82, security: 84, abuse: 90, dmca: 90, compliance: 82,
 };
 const FOUNDER_ROLE_LOCALS = new Set(["founders", "founder", "ceo"]);
@@ -121,8 +123,11 @@ export function checkMailDomain(domain: string, timeoutMs = 3000): Promise<{ ok:
  * or investor, not the prospect's founder. Drop people whose role names another company.
  */
 export function worksElsewhere(text: string, name: string, rootWord: string, siteNames: Set<string> = new Set()): boolean {
+  const ROLE_WORDS = /^(co-?founder|founder|ceo|cto|coo|cfo|cmo|cpo|president|owner|chief|head|vp|director|managing|partner|lead|and)\b/i;
+  const commaRe = /(?:founder|ceo)\s*(?:,|—|–|\||·)\s*([A-Z0-9][\w.&'’-]*(?:\s+[A-Z0-9][\w.&'’-]*){0,3})/g;
   const re = /(?:founder|ceo|chief executive officer|managing director|owner|president)[^.\n"“]{0,25}?\s(?:at|of|@)\s+([A-Z0-9][\w.&'’-]*(?:\s+[A-Z0-9][\w.&'’-]*){0,2})/gi;
-  for (const m of text.matchAll(re)) {
+  const matches = [...text.matchAll(re), ...[...text.matchAll(commaRe)].filter((m) => !ROLE_WORDS.test(m[1]))];
+  for (const m of matches) {
     const org = m[1].toLowerCase().replace(/[^a-z0-9 ]/g, "");
     if (!org || org.startsWith("the company") || org === "our company") continue;
     const compact = org.replace(/\s+/g, "");
@@ -164,7 +169,18 @@ export async function discoverContacts(
     const prev = founderMap.get(k);
     if (!prev || methodRank[f.method] < methodRank[prev.method] || (/founder/i.test(f.title) && !/founder/i.test(prev.title))) founderMap.set(k, f);
   };
-  for (const p of ok) for (const person of p.extract!.people) addFounder({ ...person, sourceUrl: p.url });
+  const NOISY = /\/(testimonials?|customers?|case-stud|reviews?|wall-of-love|love|stories|blog|news|changelog|archive|posts?|articles?|podcast|episodes?|events?|jobs?|careers?)(\/|$)/i;
+  for (const p of ok) {
+    let path = "/";
+    try {
+      path = new URL(p.url).pathname;
+    } catch {}
+    for (const person of p.extract!.people) {
+      // Structured data is explicit; text/DOM hits on testimonial or content pages are usually other people.
+      if (person.method !== "jsonld" && NOISY.test(path)) continue;
+      addFounder({ ...person, sourceUrl: p.url });
+    }
+  }
   for (const f of extraFounders) addFounder(f);
   // Founders first, then CEO / others
   const founders = [...founderMap.values()]
@@ -184,12 +200,17 @@ export async function discoverContacts(
   const contacts: DiscoveredContact[] = [];
   for (const [email, seen] of sightings) {
     const [local, domain] = email.split("@");
-    const onSiteDomain = siteKey(domain) === root || domain.endsWith(`.${root}`);
+    const brand = (d: string) => {
+      const parts = d.split(".");
+      return parts.length >= 3 && /^(co|com|org|net|ac|gov)$/.test(parts[parts.length - 2]) ? parts[parts.length - 3] : parts[parts.length - 2];
+    };
+    // Same domain, a subdomain, or the same brand on another TLD (acme.com site, @acme.io mail).
+    const onSiteDomain = siteKey(domain) === root || domain.endsWith(`.${root}`) || (brand(domain) === brand(root) && brand(root).length >= 4 && !/^mg$|^mail$|^email$/.test(domain.split(".")[0]));
     const freeMail = /^(gmail|googlemail|outlook|hotmail|live|yahoo|icloud|me|proton|protonmail|pm|hey|fastmail|zoho|aol|gmx|yandex)\./i.test(domain);
     if (!onSiteDomain && !freeMail) {
-      // An email on another company's domain (agency, platform vendor) is rarely the right contact.
-      const mentionedBySite = seen.some((s) => s.viaMailto);
-      if (!mentionedBySite) continue;
+      // An address on another company's domain (agency, vendor, a customer in a blog post) is not this company's contact,
+      // unless it clearly belongs to one of the founders.
+      if (!founders.some((f) => localMatchesName(local, f.name))) continue;
     }
     const flatLocal = local.replace(/[^a-z]/g, "");
     let tier: ContactTier = "company_email";
@@ -219,7 +240,7 @@ export async function discoverContacts(
       label = `Personal email listed next to ${nearFounder.name} (${nearFounder.title})`;
     } else if (isPersonalLooking(local) && onSiteDomain) {
       rank = 10;
-      label = "Personal email on the website (person not identified)";
+      label = "Named mailbox on the website (owner not identified)";
       confidence = "medium";
     } else {
       rank = 10 + (GENERIC_LOCALS[flatLocal] ?? 35);
@@ -259,9 +280,15 @@ export async function discoverContacts(
     seenOther.add(key);
     contacts.push({ ...c, tier: "other_contact", isValid: true });
   };
-  for (const p of ok) {
-    if (p.extract!.hasContactForm) addOther({ kind: "contact_form", value: p.url, label: "Contact form", rank: 300, confidence: "medium", sourceUrl: p.url });
-  }
+  const formPages = ok
+    .filter((p) => p.extract!.hasContactForm)
+    .map((p) => {
+      const u = new URL(p.url);
+      u.search = "";
+      return { url: u.href, isContact: /contact|support|demo|talk|sales/i.test(u.pathname) };
+    })
+    .sort((a, b) => Number(b.isContact) - Number(a.isContact));
+  for (const f of formPages.slice(0, 3)) addOther({ kind: "contact_form", value: f.url, label: f.isContact ? "Contact form" : "Form on the website", rank: f.isContact ? 300 : 306, confidence: f.isContact ? "medium" : "low", sourceUrl: f.url });
   for (const p of ok) {
     for (const s of p.extract!.socials) {
       const founderLinked = s.personal && founders.find((f) => s.url.toLowerCase().includes(nameTokens(f.name).first) && s.url.toLowerCase().includes(nameTokens(f.name).last));

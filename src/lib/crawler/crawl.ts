@@ -64,6 +64,8 @@ export function scorePath(u: URL): number {
   }
   const depth = path.split("/").filter(Boolean).length;
   score -= Math.max(0, depth - 1) * 8;
+  if (depth >= 3) score = Math.min(score, 25); // deep pages (archives, posts) are rarely about the company itself
+  if (/\/(archive|archives|tag|tags|category|page)\//i.test(path)) score = Math.min(score, 12);
   if (/^\/(?:[a-z]{2}(?:-[a-z]{2})?)\//i.test(path) && !/^\/(en|us)(-|\/)/i.test(path)) score -= 30; // other locales
   if (u.search) score -= 10;
   return score;
@@ -280,7 +282,7 @@ export async function crawlSite(input: string, opts: CrawlOptions = {}): Promise
           if (item.via !== "guess") pages.push({ url: item.url.href, status: res.status, error: `HTTP ${res.status}`, errorKind: "http", priority: item.priority, via: item.via });
           continue;
         }
-        const finalUrl = new URL(res.url);
+        const finalUrl = canonicalizeLink(res.url, new URL(res.url), siteHost) ?? new URL(res.url);
         if (!isSameSite(finalUrl.hostname, siteHost)) continue; // redirected off-site
         const fk = urlKey(finalUrl);
         if (fk !== urlKey(item.url)) {
@@ -289,7 +291,7 @@ export async function crawlSite(input: string, opts: CrawlOptions = {}): Promise
         }
         const extract = extractPage(res.text, res.url);
         if (pages.length >= maxPages) return;
-        pages.push({ url: res.url, status: res.status, extract, priority: item.priority, via: item.via });
+        pages.push({ url: finalUrl.href, status: res.status, extract, priority: item.priority, via: item.via });
         if (item.priority >= 30) {
           for (const href of extract.links) {
             const c = canonicalizeLink(href, finalUrl, siteHost);

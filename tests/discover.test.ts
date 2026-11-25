@@ -79,3 +79,17 @@ describe("testimonial founders are not the prospect's founders", () => {
     expect(r.founders.map((f) => f.name)).toEqual(["Uku Taht"]);
   });
 });
+
+describe("live-site regressions", () => {
+  it("ignores testimonial founders written as 'Founder, OtherCo' and people on testimonial pages", async () => {
+    const home = page("https://buttondown.com/", `<html><body><script type="application/ld+json">{"@type":"Organization","name":"Buttondown","founder":{"@type":"Person","name":"Justin Duke"}}</script><p>Hi</p></body></html>`, 1000);
+    const t = page("https://buttondown.com/testimonials", `<html><body><div><h4>Noel Welsh</h4><p>Founder, Inner Product</p></div></body></html>`);
+    const r = await discoverContacts([home, t], "buttondown.com", [], { checkMx: false });
+    expect(r.founders.map((f) => f.name)).toEqual(["Justin Duke"]);
+  });
+  it("drops third-party addresses but keeps same-brand domains", async () => {
+    const p = page("https://buttondown.com/", `<html><body><a href="mailto:contact@cssclub.nyc">x</a><a href="mailto:hi@buttondown.email">y</a><a href="mailto:drafts@mg.buttondown.email">z</a></body></html>`);
+    const r = await discoverContacts([p], "buttondown.com", [], { checkMx: false });
+    expect(r.contacts.map((c) => c.value)).toEqual(["hi@buttondown.email"]);
+  });
+});
