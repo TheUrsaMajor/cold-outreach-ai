@@ -2,7 +2,7 @@
 
 There are three layers of tests:
 
-1. **Unit tests** (`npm test`, Vitest, 99 tests). They need no network and no keys.
+1. **Unit tests** (`npm test`, Vitest, 108 tests). They need no network and no keys.
 2. **Live pipeline tests** against real websites, run on the deployed app through the token-protected `/api/selftest` route.
 3. **Browser end-to-end test** of the deployed UI with Playwright (login → research → edit → open in Gmail → usage, plus a mobile check).
 
@@ -14,6 +14,7 @@ There are three layers of tests:
 | `tests/robots.test.ts` | robots.txt parsing, user-agent groups, and longest-match allow/disallow |
 | `tests/extract.test.ts` | Page extraction from a fixture: title, headings, text, emails (mailto, plain, Cloudflare-encoded, `[at]`/`[dot]` obfuscation), JSON-LD founders, founder phrases in text and DOM, socials, phones, contact forms, and placeholder emails being ignored |
 | `tests/discover.test.ts` | The contact fallback order (founder email, then company email, then other contact method), matching emails to founders by name, ranking generic inboxes, dropping third-party domains, filtering testimonial people, and the MX-check hook |
+| `tests/csv.test.ts` | CSV escaping, formula-injection guard, a round trip through the parser, and pulling websites from a CSV: header column, plain list, emails turned into domains, dedupe, Excel semicolon files with a BOM, and the 50-site cap |
 | `tests/generate.test.ts` | The model fallback chain with mocked providers: primary success, rate-limit/overload fallback, invalid JSON, every model failing (falls back to the deterministic template), a bad key skipping that provider's other models, a per-model Gemini quota not skipping the rest of Gemini, and the OpenRouter daily cap skipping the other free models. Also output verification (citations stripped from the email, the CTA guaranteed, the MRR band never leaking) and the deliverability scorer |
 
 ```bash

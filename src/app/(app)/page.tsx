@@ -1,5 +1,6 @@
 import { requireUser } from "@/lib/supabase/server";
 import { ResearchForm } from "@/components/ResearchForm";
+import { BulkImport } from "@/components/BulkImport";
 import { CompaniesTable, type CompanyRow } from "@/components/CompaniesTable";
 import { Stat } from "@/components/ui";
 
@@ -27,6 +28,7 @@ export default async function Dashboard() {
         <p className="mt-1 text-sm text-slate-500">Paste a company website. We read the site, find the best founder contact, and draft a short cold email opener you can edit and send.</p>
       </div>
       <ResearchForm />
+      <BulkImport />
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         <Stat label="Companies" value={rows.length} />
         <Stat label="Founder emails found" value={founderEmails} hint={rows.length ? `${Math.round((founderEmails / rows.length) * 100)}% of companies` : undefined} />

@@ -18,13 +18,13 @@ A "run" = crawl one website (up to 30 pages) + find contacts + one successful LL
 
 | Model (in fallback order) | Free tier (approx.) | Paid price / 1M tokens | Cost of 1,000 runs at paid rates |
 |---|---|---|---|
-| Gemini 3.5 Flash | about 10 RPM / 250 RPD | $0.50 in / $3.00 out | about $8.40 a day |
 | Groq gpt-oss-120b | 30 RPM / 1,000 RPD / 8k TPM | $0.15 / $0.60 | about $2.30 a day |
+| Gemini 3.5 Flash | about 10 RPM / 250 RPD | $0.50 in / $3.00 out | about $8.40 a day |
 | Groq Qwen 3.8 27B | 60 RPM / 1,000 RPD / 6k TPM | about $0.29 / $0.59 | about $4.00 a day |
 | Gemini 3.5 Flash Lite | about 15 RPM / 1,000 RPD | $0.10 / $0.40 | about $1.50 a day |
 | OpenRouter free Nemotron 3 Ultra / Gemma 4 | 20 RPM / 50 RPD shared (1,000 with $10 credit) | $0 | $0 |
 
-* **On free tiers alone**, the combined daily quota (250 + 1,000 + 1,000 + 1,000 + 50) is about 3,300 calls, so 1,000 runs a day fits, with Gemini handling the first about 250 and Groq taking the overflow automatically. Groq's TPM limit (8 to 12k tokens a minute) caps it at about 1 run a minute per model. The chain already trims context for Groq (18k chars ≈ 4.5k tokens) to stay under it.
+* **On free tiers alone**, the combined daily quota (1,000 + 250 + 1,000 + 1,000 + 50) is about 3,300 calls, so 1,000 runs a day fits. Groq takes runs first. Its TPM limit (8 to 12k tokens a minute) caps it at about 1 run a minute per model, so bursts above that spill over to Gemini automatically. The chain already trims context for Groq (18k chars ≈ 4.5k tokens) to stay under it.
 * **Recommended for production:** enable billing on the Gemini key (Tier 1: 1,000+ RPM). Then 1,000 runs cost about **$8 a day (about $250 a month)** on Flash, or about **$1.50 a day** if `LLM_CHAIN` puts Flash Lite first. Usage and estimated spend are tracked live on the *AI usage* page.
 * **Swap models without code changes:** `LLM_CHAIN="gemini:gemini-3.5-flash-lite,groq:openai/gpt-oss-120b,..."`.
 

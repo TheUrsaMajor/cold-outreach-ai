@@ -221,8 +221,9 @@ export async function callModel(spec: ModelSpec, req: LlmRequest): Promise<LlmRe
 }
 
 export const DEFAULT_CHAIN: ModelSpec[] = [
-  { provider: "gemini", model: "gemini-3.5-flash" },
+  // Groq first: fastest, and its 1,000 requests/day outlasts Gemini Flash's small free daily quota.
   { provider: "groq", model: "openai/gpt-oss-120b" },
+  { provider: "gemini", model: "gemini-3.5-flash" },
   { provider: "groq", model: "qwen/qwen3.8-27b" },
   { provider: "gemini", model: "gemini-3.5-flash-lite" },
   { provider: "openrouter", model: "nvidia/nemotron-3-ultra-550b-a55b:free" },

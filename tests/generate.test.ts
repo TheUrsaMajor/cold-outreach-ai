@@ -159,7 +159,7 @@ describe("generateOutreach fallback chain", () => {
       throw new LlmError("free-models-per-day limit reached", "rate_limit", 429);
     };
     behaviour.primary = ok();
-    const r = await generateOutreach({ ...base, chain: c });
+    await generateOutreach({ ...base, chain: c });
     expect(calls).toEqual(["o1", "primary"]);
   });
 });
