@@ -128,6 +128,10 @@ export function verifyOutput(raw: unknown, sources: SourceDoc[], senderFirstName
 
   let body = out.email.opener.replace(/\r\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
   // Strip any links the model slipped in (deliverability rule) and markdown.
+  body = body
+    .replace(/\s*[\[(]\s*S\d+(?:\s*[,;]\s*S\d+)*\s*[\])]/g, "")
+    .replace(/[\u2010\u2011\u2012]/g, "-")
+    .replace(/\u00a0/g, " ");
   body = body.replace(/\*\*(.+?)\*\*/g, "$1").replace(/\[(.+?)\]\((.+?)\)/g, "$1").replace(/https?:\/\/\S+/g, "").replace(/[ \t]+\n/g, "\n").trim();
   const first = senderFirstName.trim();
   if (first && !new RegExp(`\\b${first.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*$`).test(body)) body = `${body}\n\n${first}`;
@@ -135,7 +139,7 @@ export function verifyOutput(raw: unknown, sources: SourceDoc[], senderFirstName
   if (words < 20) throw new LlmError("Opener too short", "invalid_output");
   if (words > 220) throw new LlmError("Opener too long", "invalid_output");
 
-  const subjects = out.email.subject_options.map((s) => s.replace(/^(re|fwd?|fw)\s*:\s*/i, "").replace(/["“”]/g, "").trim()).filter(Boolean);
+  const subjects = out.email.subject_options.map((s) => s.replace(/^(re|fwd?|fw)\s*:\s*/i, "").replace(/["“”]/g, "").replace(/\s*[\[(]S\d+[\])]/g, "").replace(/[\u2010\u2011\u2012]/g, "-").trim()).filter(Boolean);
   if (!subjects.length) throw new LlmError("No subject line", "invalid_output");
   return { out, facts, personalization, founders, body, subjects };
 }
@@ -192,6 +196,7 @@ export async function generateOutreach(opts: GenerateOptions): Promise<Generatio
   const sys = systemPrompt(opts.sender);
   let lastSources: SourceDoc[] = opts.sources;
   const failedProviders = new Map<string, number>(); // provider -> consecutive auth/rate failures
+  let retriedPrimary = false;
 
   for (let i = 0; i < chain.length; i++) {
     const spec = chain[i];
@@ -244,6 +249,13 @@ export async function generateOutreach(opts: GenerateOptions): Promise<Generatio
       const a: Attempt = { provider: spec.provider, model: spec.model, attempt: attempts.length + 1, success: false, error: `${err.kind}: ${err.message}`.slice(0, 500), promptTokens: 0, completionTokens: 0, totalTokens: 0, latencyMs: Date.now() - t0, costUsd: 0 };
       attempts.push(a);
       await opts.onAttempt?.(a);
+      // The preferred model is often only briefly overloaded: retry it once before falling back.
+      if (i === 0 && !retriedPrimary && (err.kind === "overloaded" || (err.kind === "rate_limit" && !/quota|per day|daily/i.test(err.message))) && budget - (Date.now() - started) > 25_000) {
+        retriedPrimary = true;
+        await new Promise((r) => setTimeout(r, Math.min(err.retryAfterMs ?? 1500, 3000)));
+        i--;
+        continue;
+      }
       if (err.kind === "auth" || err.kind === "not_configured") failedProviders.set(spec.provider, 1);
       if (err.kind === "rate_limit" && /quota|per day|RPD|daily/i.test(err.message)) failedProviders.set(spec.provider, 1);
     }

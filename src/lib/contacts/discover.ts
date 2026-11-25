@@ -116,6 +116,24 @@ export function checkMailDomain(domain: string, timeoutMs = 3000): Promise<{ ok:
   return mxCache.get(d)!;
 }
 
+/**
+ * "Jane Doe, Founder at OtherCo" on a prospect's site is almost always a testimonial
+ * or investor, not the prospect's founder. Drop people whose role names another company.
+ */
+export function worksElsewhere(text: string, name: string, rootWord: string, siteNames: Set<string> = new Set()): boolean {
+  const re = /(?:founder|ceo|chief executive officer|managing director|owner|president)[^.\n"“]{0,25}?\s(?:at|of|@)\s+([A-Z0-9][\w.&'’-]*(?:\s+[A-Z0-9][\w.&'’-]*){0,2})/gi;
+  for (const m of text.matchAll(re)) {
+    const org = m[1].toLowerCase().replace(/[^a-z0-9 ]/g, "");
+    if (!org || org.startsWith("the company") || org === "our company") continue;
+    const compact = org.replace(/\s+/g, "");
+    if (compact.includes(rootWord) || rootWord.includes(compact)) continue;
+    if ([...siteNames].some((n) => n.replace(/[^a-z0-9]/g, "").includes(compact) || compact.includes(n.replace(/[^a-z0-9]/g, "")))) continue;
+    if (name.toLowerCase().includes(org)) continue;
+    return true;
+  }
+  return false;
+}
+
 type EmailSighting = { email: string; pageUrl: string; context: string; viaMailto: boolean };
 
 /**
@@ -134,10 +152,14 @@ export async function discoverContacts(
   const root = siteKey(siteDomain);
 
   // ---- founders
+  const siteNames = new Set(ok.flatMap((p) => [p.extract!.orgName, p.extract!.siteName].filter(Boolean).map((n) => n!.toLowerCase())));
   const founderMap = new Map<string, DiscoveredFounder>();
   const methodRank = { jsonld: 0, dom: 1, ai: 2, pattern: 3 } as const;
+  const rootWord = root.split(".")[0].toLowerCase();
   const addFounder = (f: DiscoveredFounder) => {
     if (!/founder|ceo|chief executive|managing director|owner|president/i.test(f.title)) return;
+    if (/\n/.test(f.name)) return;
+    if (worksElsewhere(`${f.title} ${f.evidence}`, f.name, rootWord, siteNames)) return;
     const k = f.name.toLowerCase().replace(/[^a-zÀ-ɏ]/g, "");
     const prev = founderMap.get(k);
     if (!prev || methodRank[f.method] < methodRank[prev.method] || (/founder/i.test(f.title) && !/founder/i.test(prev.title))) founderMap.set(k, f);

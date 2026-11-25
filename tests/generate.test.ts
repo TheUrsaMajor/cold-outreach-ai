@@ -156,3 +156,24 @@ describe("deliverability", () => {
     expect(s.warnings.length).toBeGreaterThan(3);
   });
 });
+
+describe("citations never leak into the email", () => {
+  it("strips (S1) style ids", () => {
+    const v = verifyOutput({ ...goodOutput, email: { ...goodOutput.email, opener: "Hi Priya,\n\nYour $19 plan (S1) is a smart wedge [S2] for bootstrapped founders who watch every dollar and need to keep churn low every single month.\n\nWorth a look?" } }, sources, "Alex");
+    expect(v.body).not.toMatch(/S\d/);
+  });
+});
+
+describe("primary retry", () => {
+  it("retries the primary model once when overloaded", async () => {
+    let n = 0;
+    behaviour.primary = async () => {
+      n++;
+      if (n === 1) throw new LlmError("busy", "overloaded", 503);
+      return ok()();
+    };
+    const r = await generateOutreach({ ...base, budgetMs: 40_000 });
+    expect(calls).toEqual(["primary", "primary"]);
+    expect(r.model).toBe("primary");
+  });
+});

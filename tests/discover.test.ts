@@ -61,3 +61,21 @@ describe("discoverContacts fallback order", () => {
     expect(r.best?.tier).toBe("founder_email");
   });
 });
+
+import { worksElsewhere } from "../src/lib/contacts/discover";
+describe("testimonial founders are not the prospect's founders", () => {
+  it("flags founders of other companies", () => {
+    expect(worksElsewhere("Co-founder and CEO at Hugging Face", "Clem Delangue", "plausible")).toBe(true);
+    expect(worksElsewhere("Founder at Paperbell", "Laura Roeder", "plausible")).toBe(true);
+  });
+  it("keeps the prospect's own founders", () => {
+    expect(worksElsewhere("Founder at Plausible Analytics", "Uku Taht", "plausible")).toBe(false);
+    expect(worksElsewhere("Co-founder & CEO", "Priya Raman", "ledgerly")).toBe(false);
+    expect(worksElsewhere("Founder of Ledgerly", "Priya Raman", "ledgerly")).toBe(false);
+  });
+  it("drops testimonial people when crawling", async () => {
+    const p = page("https://plausible.io/", `<html><body><div><h4>Clem Delangue</h4><p>Co-founder and CEO at Hugging Face</p></div><div><h4>Uku Taht</h4><p>Co-founder</p></div></body></html>`);
+    const r = await discoverContacts([p], "plausible.io", [], { checkMx: false });
+    expect(r.founders.map((f) => f.name)).toEqual(["Uku Taht"]);
+  });
+});

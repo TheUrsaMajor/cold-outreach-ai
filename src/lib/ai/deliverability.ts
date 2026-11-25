@@ -14,7 +14,7 @@ export const SPAM_PHRASES = [
   "dear friend", "dear sir", "to whom it may concern", "this isn't spam", "this is not spam", "not spam", "unsubscribe", "opt in", "no obligation",
   "no credit card", "no catch", "no strings attached", "amazing", "incredible", "revolutionary", "game-changer", "game changer", "miracle", "fantastic deal",
   "hidden charges", "apply now", "call now", "sign up free", "instant access", "while supplies last", "act immediately", "what are you waiting for",
-  "100%", "$$$", "cash", "crypto", "bitcoin", "investment opportunity", "billion", "million dollars", "work from home", "be your own boss",
+  "100%", "$$$", "cash bonus", "fast cash", "crypto", "bitcoin", "investment opportunity", "billion", "million dollars", "work from home", "be your own boss",
   "i hope this email finds you well", "i hope this finds you well", "just following up", "quick question", "touching base", "circle back",
   "synergy", "leverage", "cutting-edge", "cutting edge", "world-class", "best-in-class", "disrupt",
 ];

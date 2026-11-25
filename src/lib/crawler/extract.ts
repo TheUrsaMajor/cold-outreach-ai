@@ -103,11 +103,11 @@ function normalizeTitle(t: string): string {
 /** Find founders / key people in visible text using conservative patterns. */
 export function findPeopleInText(text: string): ExtractedPerson[] {
   const out: ExtractedPerson[] = [];
-  const NAME = "([A-Z\\u00C0-\\u024F][a-z\\u00C0-\\u024F'’\\-]+(?:\\s+(?:[A-Z]\\.\\s+)?[A-Z\\u00C0-\\u024F][a-z\\u00C0-\\u024F'’\\-]+){1,2})";
+  const NAME = "([A-Z\\u00C0-\\u024F][a-z\\u00C0-\\u024F'’\\-]+(?:[ \\t]+(?:[A-Z]\\.[ \\t]+)?[A-Z\\u00C0-\\u024F][a-z\\u00C0-\\u024F'’\\-]+){1,2})";
   const ROLE = "((?:[Cc]o[\\s-]?)?[Ff]ounder(?:\\s*(?:&|and|,|/)\\s*(?:CEO|CTO|COO|[Cc]hief [A-Za-z]+ [Oo]fficer|President))?|CEO(?:\\s*(?:&|and|,|/)\\s*(?:[Cc]o[\\s-]?)?[Ff]ounder)?|[Cc]hief [Ee]xecutive [Oo]fficer|[Mm]anaging [Dd]irector)";
   const patterns: RegExp[] = [
     new RegExp(`${NAME}\\s*(?:,|–|—|-|\\||·|:|\\(|\\bis\\b(?:\\s+(?:the|our|a))?|\\bour\\b)\\s*(?:the\\s+|our\\s+)?${ROLE}`, "g"),
-    new RegExp(`${ROLE}\\s*(?:,|–|—|-|\\||·|:)?\\s*(?:and\\s+)?${NAME}`, "g"),
+    new RegExp(`${ROLE}[ \\t]*(?:,|–|—|-|\\||·|:)[ \\t]*(?:and[ \\t]+)?${NAME}`, "g"),
   ];
   for (const re of patterns) {
     for (const m of text.matchAll(re)) {
