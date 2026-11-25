@@ -181,6 +181,25 @@ describe("citations never leak into the email", () => {
     const v = verifyOutput({ ...goodOutput, email: { ...goodOutput.email, opener: "Hi Priya,\n\nYour $19 plan (S1) is a smart wedge [S2] for bootstrapped founders who watch every dollar and need to keep churn low every single month.\n\nWorth a look?" } }, sources, "Alex");
     expect(v.body).not.toMatch(/S\d/);
   });
+  it("strips full-width 【S1】 tags, multi-source and dagger forms, in body, CTA and subjects", () => {
+    const v = verifyOutput(
+      {
+        ...goodOutput,
+        email: {
+          ...goodOutput.email,
+          subject_options: ["churn at ledgerly【S1】", "a quick idea [S1, S2]", "your pricing（S2）"],
+          opener: "Hi Priya,\n\nLedgerly is built for bootstrapped SaaS founders【S1】 and starts small【S1†L3-L5】, which is a smart wedge (S1, S2) for anyone watching churn and cash every single month.\n\nSteward flags churn risk early.\n\nAlex",
+          cta: "Worth a look?【S2】",
+        },
+      },
+      sources,
+      "Alex",
+    );
+    expect(v.body).not.toMatch(/S\d|【|】/);
+    expect(v.body).toMatch(/founders and starts small, which is a smart wedge for anyone/);
+    expect(v.body).toMatch(/Worth a look\?\n\nAlex$/);
+    expect(v.subjects.join(" ")).not.toMatch(/S\d|【|（/);
+  });
 });
 
 describe("primary retry", () => {

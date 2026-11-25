@@ -5,6 +5,12 @@ import { fitSources, systemPrompt, userPrompt, type SenderProfile, type SourceDo
 import { checkDeliverability, type SpamCheck } from "./deliverability";
 import type { DiscoveredFounder } from "../contacts/discover";
 
+/**
+ * Source tags models leak into prose: (S1), [S2], [S1, S3], (S1 p.2), and the full-width
+ * 【S1】 / 【S1†L3-L5】 / （S1） forms some models (e.g. gpt-oss) use.
+ */
+export const CITATION_RE = /\s*[\[(\u3010\u3014\uff08]\s*S\d+(?:[^\])\u3011\u3015\uff09\n]{0,40})?[\])\u3011\u3015\uff09]/g;
+
 const factSchema = z.object({ fact: z.string().min(3).max(400), source: z.string().max(10) });
 
 export const outputSchema = z.object({
@@ -129,12 +135,13 @@ export function verifyOutput(raw: unknown, sources: SourceDoc[], senderFirstName
   let body = out.email.opener.replace(/\r\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
   // Strip any links the model slipped in (deliverability rule) and markdown.
   body = body
-    .replace(/\s*[\[(]\s*S\d+(?:\s*[,;]\s*S\d+)*\s*[\])]/g, "")
+    .replace(CITATION_RE, "")
+    .replace(/\s*\u3010[^\u3011]{0,80}\u3011/g, "")
     .replace(/[\u2010\u2011\u2012]/g, "-")
     .replace(/\u00a0/g, " ");
   body = body.replace(/\*\*(.+?)\*\*/g, "$1").replace(/\[(.+?)\]\((.+?)\)/g, "$1").replace(/https?:\/\/\S+/g, "").replace(/[ \t]+\n/g, "\n").trim();
   // Guarantee a call to action: if the body has no question, add the model's CTA before the sign-off.
-  const cta = out.email.cta.trim();
+  const cta = out.email.cta.replace(CITATION_RE, "").replace(/\s*\u3010[^\u3011]{0,80}\u3011/g, "").trim();
   if (!body.includes("?") && cta) {
     const lines = body.split("\n");
     const last = lines[lines.length - 1]?.trim() ?? "";
@@ -149,7 +156,7 @@ export function verifyOutput(raw: unknown, sources: SourceDoc[], senderFirstName
   if (words < 20) throw new LlmError("Opener too short", "invalid_output");
   if (words > 220) throw new LlmError("Opener too long", "invalid_output");
 
-  const subjects = out.email.subject_options.map((s) => s.replace(/^(re|fwd?|fw)\s*:\s*/i, "").replace(/["“”]/g, "").replace(/\s*[\[(]S\d+[\])]/g, "").replace(/[\u2010\u2011\u2012]/g, "-").trim()).filter(Boolean);
+  const subjects = out.email.subject_options.map((s) => s.replace(/^(re|fwd?|fw)\s*:\s*/i, "").replace(/["“”]/g, "").replace(CITATION_RE, "").replace(/\s*\u3010[^\u3011]{0,80}\u3011/g, "").replace(/[\u2010\u2011\u2012]/g, "-").trim()).filter(Boolean);
   if (!subjects.length) throw new LlmError("No subject line", "invalid_output");
   return { out, facts, personalization, founders, body, subjects };
 }
