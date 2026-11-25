@@ -143,6 +143,25 @@ describe("generateOutreach fallback chain", () => {
     expect(calls).toEqual(["g1", "primary"]);
     expect(r.model).toBe("primary");
   });
+  it("a daily quota on one Gemini model still tries the provider's other models", async () => {
+    const c = [{ provider: "gemini" as const, model: "g1" }, { provider: "gemini" as const, model: "g2" }];
+    behaviour.g1 = async () => {
+      throw new LlmError("quota exceeded per day", "rate_limit", 429);
+    };
+    behaviour.g2 = ok();
+    const r = await generateOutreach({ ...base, chain: c });
+    expect(calls).toEqual(["g1", "g2"]);
+    expect(r.model).toBe("g2");
+  });
+  it("an OpenRouter daily cap skips its other free models", async () => {
+    const c = [{ provider: "openrouter" as const, model: "o1" }, { provider: "openrouter" as const, model: "o2" }, { provider: "gemini" as const, model: "primary" }];
+    behaviour.o1 = async () => {
+      throw new LlmError("free-models-per-day limit reached", "rate_limit", 429);
+    };
+    behaviour.primary = ok();
+    const r = await generateOutreach({ ...base, chain: c });
+    expect(calls).toEqual(["o1", "primary"]);
+  });
 });
 
 describe("deliverability", () => {

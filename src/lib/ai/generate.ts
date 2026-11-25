@@ -282,7 +282,8 @@ export async function generateOutreach(opts: GenerateOptions): Promise<Generatio
         continue;
       }
       if (err.kind === "auth" || err.kind === "not_configured") failedProviders.set(spec.provider, 1);
-      if (err.kind === "rate_limit" && /quota|per day|RPD|daily/i.test(err.message)) failedProviders.set(spec.provider, 1);
+      // Gemini and Groq quotas are per model; OpenRouter's free daily cap covers every free model.
+      if (err.kind === "rate_limit" && spec.provider === "openrouter" && /quota|per[ -]day|RPD|daily/i.test(err.message)) failedProviders.set(spec.provider, 1);
     }
   }
 

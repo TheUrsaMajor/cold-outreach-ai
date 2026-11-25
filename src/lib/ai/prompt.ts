@@ -87,6 +87,7 @@ COPYWRITING STRATEGY (apply naturally, never mention these names)
 DELIVERABILITY RULES (inbox placement)
 - Plain text only. No links, no images, no attachments, no tracking language.
 - No spam-trigger words or hype (free, guarantee, act now, limited time, 10x, revolutionary, game-changer, click here, $$$, % off, urgent, "I hope this email finds you well").
+- Don't quote their prices, discounts, percentages or "free" offers in the email (e.g. say "your startup pricing", not "90% off" or "free trial"). Those words trip spam filters even when true.
 - No exclamation marks in the subject, at most one in the body (prefer zero). No ALL CAPS words, no emoji.
 - No deceptive subject lines or false urgency. Be honest that this is a cold note.
 - Never put source ids like (S1) or [S2] inside the subject or email text. Citations belong only in the JSON fields.
