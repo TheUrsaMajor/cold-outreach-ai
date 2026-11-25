@@ -1,36 +1,98 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Steward Outreach
 
-## Getting Started
+A web app that researches a prospect's public website, finds the best founder contact, and writes a short, personalised, inbox-friendly cold email opener for **Steward**, a (fictional) AI management team for software companies doing about $10K to $50K MRR.
 
-First, run the development server:
+**Live:** https://cold-outreach-ai-vision-hack.vercel.app
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## What it does
+
+1. **Paste a website** (e.g. `acme.com`).
+2. **Crawler** reads up to 30 pages politely. It checks robots.txt and the sitemap, prioritises the about, team, contact, pricing and product pages, blocks private networks (SSRF), and enforces timeouts and size caps. JavaScript-only sites fall back to a rendering reader.
+3. **Contact finder** follows a strict fallback order:
+   1. **Founder's email**: an address whose mailbox matches a founder named on the site (e.g. `priya@` for Priya Raman), or `founder@`/`ceo@`.
+   2. **Any email published on the site**: ranked `hello@` / `team@` / `contact@` first, with `privacy@` and `careers@` last.
+   3. **Any other contact method**: contact form, founder LinkedIn, booking link, company LinkedIn, X, phone, GitHub and others.
+
+   Every contact shows its **source page**. Addresses are **never guessed**, and each email domain is **MX-verified**, so undeliverable addresses are crossed out.
+4. **AI** builds a sourced business profile and writes a 45 to 90 word hook-style opener plus 3 subject lines. The output is validated: facts must cite a crawled page, founders must appear in the page text, and links and fake "Re:" prefixes are stripped.
+5. **Editable email** with To, Subject and Body, a live deliverability score, and one-click **Open in Gmail / Outlook / your mail app**. You can mark it sent, replied or bounced.
+6. **Everything is stored** in Postgres: companies, research runs, pages read, founders, contacts, drafts (all versions), the communication timeline, AI usage and the audit log.
+
+## AI model choice (and fallbacks)
+
+| Order | Model | Why |
+|---|---|---|
+| 1 | **Gemini 3.5 Flash** (Google AI Studio) | Best writing quality in the free tier, 1M-token context (fits an entire small website), JSON mode, about 4 s with minimal thinking |
+| 2 | Groq **gpt-oss-120b** | Different vendor (independent outage), very fast, strong reasoning, free tier |
+| 3 | Groq **Llama 3.3 70B** | Separate quota from #2, good copywriting |
+| 4 | Gemini 3.5 **Flash Lite** | Cheap and fast, separate quota from #1 |
+| 5 | OpenRouter free Llama 3.3 70B | A third vendor |
+| 6 | Deterministic template | Built only from the site's own description, so **a draft is always produced** |
+
+The model layer is provider-agnostic (`src/lib/ai/providers.ts`). Change the order or models with one env var, e.g. `LLM_CHAIN="groq:openai/gpt-oss-120b,gemini:gemini-3.5-flash"`. Each provider gets a context budget that fits its token limits. Invalid JSON, timeouts, 429s and 5xx errors move to the next model, and a bad key or exhausted daily quota skips that provider's other models.
+
+## Marketing and deliverability built in
+
+* **Copy strategy** (in `src/lib/ai/prompt.ts`): one verifiable personal observation, a relevance bridge to a stage-specific pain, one-line value, an interest-based soft CTA, peer-to-peer founder tone, no fabricated social proof, and a fit assessment.
+* **Spam safety** (`src/lib/ai/deliverability.ts`): checks for about 90 trigger phrases, caps, exclamation marks, links, shorteners, HTML, emoji in subjects, length, and deceptive `Re:`/`Fwd:`. It runs live while you edit.
+* **In-app guide** (`/guide`): separate sending domain, SPF/DKIM/DMARC records with examples, BIMI/MTA-STS, warm-up schedule, volume limits, list hygiene, and CAN-SPAM/GDPR/CASL notes.
+
+## Security
+
+* Supabase Auth (email + password). Middleware protects every page and API route. Optional `ALLOWED_SIGNUPS` allowlist.
+* **Row Level Security** on every table (`owner_id = auth.uid()`), so users only ever see their own data. Usage and audit logs are append-only.
+* API: zod validation on every input, same-origin (CSRF) checks, per-user hourly and daily run limits, UUID checks, and generic error messages.
+* **Crawler:** blocks private, loopback, link-local and metadata IPs. Checks DNS at validation time **and at connect time** (defeats DNS rebinding) and re-validates every redirect hop. Only http(s) on ports 80/443, no credentials in URLs, size and time caps. Page text is treated as untrusted in the prompt (prompt-injection guard).
+* Secrets live only in Vercel env vars (sensitive type). Nothing secret is in the repo, and only the Supabase publishable key is exposed to the browser.
+* Security headers: CSP, HSTS, X-Frame-Options DENY, nosniff, Referrer-Policy, Permissions-Policy.
+* Audit log of every research, edit, send, status change, delete and settings change, with IP and user agent.
+
+## Project structure
+
+```
+src/lib/crawler/     url.ts (validation + SSRF), fetcher.ts (safe fetch), robots.ts, extract.ts, crawl.ts
+src/lib/contacts/    discover.ts (founder → email → other fallback, MX checks)
+src/lib/ai/          providers.ts, generate.ts (chain + validation + template), prompt.ts, deliverability.ts, pricing.ts
+src/lib/server/      pipeline.ts (end-to-end run + persistence), common.ts (auth ctx, limits, audit)
+src/app/             dashboard, company page, usage, guide, settings, API routes
+supabase/migrations/ schema + RLS
+tests/               vitest unit tests (86)
+docs/SCALING.md      1,000 runs a day analysis
+docs/TESTING.md      real-site and failure-case test results
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Running locally
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm install
+cp .env.example .env.local   # fill in values
+npm run dev
+npm test
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Environment variables
 
-## Learn More
+| Name | Required | Notes |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | yes | Supabase project URL and publishable key |
+| `GEMINI_API_KEY` | yes* | https://aistudio.google.com/apikey |
+| `GROQ_API_KEY` | recommended | https://console.groq.com/keys |
+| `OPENROUTER_API_KEY` | optional | https://openrouter.ai/keys |
+| `LLM_CHAIN` | optional | Override model order |
+| `GEMINI_THINKING_LEVEL` | optional | `minimal` (default) / `low` / `high` |
+| `HOURLY_RUN_LIMIT`, `DAILY_RUN_LIMIT` | optional | Defaults 60 / 300 per user |
+| `DEDUPE_HOURS` | optional | Default 24 |
+| `CRAWL_MAX_PAGES` | optional | Default 30, max 60 |
+| `ALLOWED_SIGNUPS` | optional | e.g. `me@x.com,@mycompany.com` |
+| `PRODUCT_NAME`, `PRODUCT_PITCH`, `DEFAULT_SENDER_NAME` | optional | Defaults for new users (each user can edit in Settings) |
+| `SELFTEST_TOKEN` (+ `SELFTEST_EMAIL`/`PASSWORD`) | optional | Enables `/api/selftest` for operators. Leave unset to disable |
 
-To learn more about Next.js, take a look at the following resources:
+\* At least one LLM key is needed. Without any, the template fallback still produces drafts.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Database
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Apply `supabase/migrations/*.sql` in order (Supabase SQL editor or `supabase db push`).
 
-## Deploy on Vercel
+## Deployment (Vercel)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The repo is connected to the Vercel project `cold-outreach-ai`, and every push to `main` deploys to production. Functions run in `iad1`, next to the Supabase database in `us-east-1`. The research route uses `maxDuration = 120`.

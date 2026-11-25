@@ -51,6 +51,16 @@ export async function GET(req: Request) {
       );
       return Response.json({ mode, results });
     }
+    if (mode === "list") {
+      const [groq, or] = await Promise.all([
+        fetch("https://api.groq.com/openai/v1/models", { headers: { authorization: `Bearer ${process.env.GROQ_API_KEY}` } }).then((r) => r.json()).catch((e) => ({ error: String(e) })),
+        fetch("https://openrouter.ai/api/v1/models").then((r) => r.json()).catch((e) => ({ error: String(e) })),
+      ]);
+      return Response.json({
+        groq: (groq.data ?? []).map((m: { id: string; context_window?: number }) => `${m.id} (${m.context_window})`),
+        openrouterFree: (or.data ?? []).filter((m: { id: string }) => m.id.endsWith(":free")).map((m: { id: string; context_length?: number }) => `${m.id} (${m.context_length})`),
+      });
+    }
     if (mode === "dry") {
       const crawl = await crawlSite(url, { maxPages: Number(q.get("pages") || 30), budgetMs: 26000 });
       const disc = await discoverContacts(crawl.pages, crawl.domain);
