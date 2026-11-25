@@ -191,6 +191,12 @@ export type GenerateOptions = {
 };
 
 const CONTEXT_CHARS: Record<string, number> = { gemini: 60_000, groq: 14_000, openrouter: 30_000 };
+/** Per-model overrides where free-tier tokens-per-minute limits are tight. */
+const MODEL_LIMITS: Record<string, { chars: number; maxOut: number }> = {
+  "qwen/qwen3.8-27b": { chars: 7_000, maxOut: 1500 },
+  "openai/gpt-oss-120b": { chars: 13_000, maxOut: 1800 },
+  "openai/gpt-oss-20b": { chars: 13_000, maxOut: 1800 },
+};
 
 /**
  * Runs the model chain until one returns a valid, source-grounded result.
@@ -207,6 +213,7 @@ export async function generateOutreach(opts: GenerateOptions): Promise<Generatio
   let lastSources: SourceDoc[] = opts.sources;
   const failedProviders = new Map<string, number>(); // provider -> consecutive auth/rate failures
   let retriedPrimary = false;
+  const retriedModels = new Set<string>();
 
   for (let i = 0; i < chain.length; i++) {
     const spec = chain[i];
@@ -214,7 +221,8 @@ export async function generateOutreach(opts: GenerateOptions): Promise<Generatio
     if (remaining < 4000) break;
     // If a provider is rate-limited or has a bad key, skip its other models.
     if ((failedProviders.get(spec.provider) ?? 0) > 0) continue;
-    const sources = fitSources(opts.sources, CONTEXT_CHARS[spec.provider] ?? 30_000);
+    const limits = MODEL_LIMITS[spec.model];
+    const sources = fitSources(opts.sources, limits?.chars ?? CONTEXT_CHARS[spec.provider] ?? 30_000);
     lastSources = sources;
     if (!sources.length) break;
     const user = userPrompt({ domain: opts.domain, sources, founders: opts.founders, recipientName: opts.recipientName, tone: opts.tone, extraInstructions: opts.extraInstructions });
@@ -223,7 +231,7 @@ export async function generateOutreach(opts: GenerateOptions): Promise<Generatio
     const timeoutMs = Math.max(3000, Math.min(isLast ? remaining - 1000 : spec.provider === "gemini" && !/lite/.test(spec.model) ? 20_000 : 18_000, remaining - 3000));
     const t0 = Date.now();
     try {
-      const res = await callModel(spec, { system: sys, user, temperature: 0.7, maxOutputTokens: spec.provider === "groq" ? 2000 : 3000, timeoutMs });
+      const res = await callModel(spec, { system: sys, user, temperature: 0.7, maxOutputTokens: limits?.maxOut ?? (spec.provider === "groq" ? 2000 : 3000), timeoutMs });
       const latencyMs = Date.now() - t0;
       const costUsd = estimateCostUsd(spec.model, res.promptTokens, res.completionTokens);
       let verified: ReturnType<typeof verifyOutput>;
@@ -263,6 +271,13 @@ export async function generateOutreach(opts: GenerateOptions): Promise<Generatio
       if (i === 0 && !retriedPrimary && (err.kind === "overloaded" || (err.kind === "rate_limit" && !/quota|per day|daily/i.test(err.message))) && budget - (Date.now() - started) > 25_000) {
         retriedPrimary = true;
         await new Promise((r) => setTimeout(r, Math.min(err.retryAfterMs ?? 1500, 3000)));
+        i--;
+        continue;
+      }
+      // Per-minute rate limits usually clear within seconds: wait once if the provider says it's short.
+      if (err.kind === "rate_limit" && !retriedModels.has(spec.model) && (err.retryAfterMs ?? 99_999) <= 8_000 && budget - (Date.now() - started) > (err.retryAfterMs ?? 0) + 15_000) {
+        retriedModels.add(spec.model);
+        await new Promise((r) => setTimeout(r, (err.retryAfterMs ?? 1000) + 250));
         i--;
         continue;
       }

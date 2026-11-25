@@ -166,13 +166,13 @@ export async function runResearch(
   }
   if (!companyId) throw new Error("Could not create the company record.");
 
-  // Clear runs stuck in "running" (e.g. a crashed function) older than 5 minutes.
+  // Clear any of this user's runs stuck in "running" (e.g. a function that was killed) for over 5 minutes.
   await ctx.supabase
     .from("research_runs")
     .update({ status: "failed", errors: ["Run timed out or was interrupted."], finished_at: new Date().toISOString() })
-    .eq("company_id", companyId)
     .eq("status", "running")
     .lt("started_at", new Date(Date.now() - 5 * 60_000).toISOString());
+  await ctx.supabase.from("companies").update({ status: "failed" }).eq("status", "researching").lt("updated_at", new Date(Date.now() - 5 * 60_000).toISOString());
 
   const { data: run, error: runErr } = await ctx.supabase.from("research_runs").insert({ owner_id: ctx.user.id, company_id: companyId, input_url: start.href, status: "running" }).select("id").single();
   if (runErr) {

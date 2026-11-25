@@ -42,7 +42,10 @@ export type ModelSpec = { provider: ProviderName; model: string };
 
 function classifyHttp(status: number, body: string, retryAfter?: string | null): LlmError {
   const short = body.replace(/\s+/g, " ").slice(0, 300);
-  const ra = retryAfter ? Number(retryAfter) * 1000 : undefined;
+  let ra = retryAfter && Number.isFinite(Number(retryAfter)) ? Number(retryAfter) * 1000 : undefined;
+  const hinted = /try again in ([\d.]+)\s*(ms|s)\b/i.exec(body);
+  if (hinted) ra = Number(hinted[1]) * (hinted[2].toLowerCase() === "ms" ? 1 : 1000);
+  if (status === 413 || (status === 429 && /request too large|reduce your message size/i.test(body))) return new LlmError(`Request too large for this model: ${short}`, "bad_request", status);
   if (status === 429) return new LlmError(`Rate limited: ${short}`, "rate_limit", status, ra);
   if (status === 503 || status === 529) return new LlmError(`Model overloaded: ${short}`, "overloaded", status, ra);
   if (status === 401 || status === 403) return new LlmError(`Authentication failed: ${short}`, "auth", status);
@@ -50,19 +53,39 @@ function classifyHttp(status: number, body: string, retryAfter?: string | null):
   return new LlmError(`Provider error ${status}: ${short}`, "server", status);
 }
 
-async function timedFetch(url: string, init: RequestInit, timeoutMs: number, outer?: AbortSignal): Promise<Response> {
+type TimedResponse = { ok: boolean; status: number; headers: Headers; text: string };
+
+/**
+ * fetch + full body read under ONE deadline. (Some providers send headers at once and then
+ * stream keep-alive whitespace while the model works, so a header-only timeout is not enough.)
+ */
+async function timedFetch(url: string, init: RequestInit, timeoutMs: number, outer?: AbortSignal): Promise<TimedResponse> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
   const onAbort = () => controller.abort();
   outer?.addEventListener("abort", onAbort);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(new LlmError(`Timed out after ${timeoutMs} ms`, "timeout"));
+    }, timeoutMs);
+  });
+  const work = (async () => {
+    try {
+      const res = await fetch(url, { ...init, signal: controller.signal });
+      const text = await res.text();
+      return { ok: res.ok, status: res.status, headers: res.headers, text };
+    } catch (e) {
+      if (controller.signal.aborted) throw new LlmError(`Timed out after ${timeoutMs} ms`, "timeout");
+      throw new LlmError(`Network error: ${(e as Error).message}`, "network");
+    }
+  })();
   try {
-    return await fetch(url, { ...init, signal: controller.signal });
-  } catch (e) {
-    if (controller.signal.aborted) throw new LlmError(`Timed out after ${timeoutMs} ms`, "timeout");
-    throw new LlmError(`Network error: ${(e as Error).message}`, "network");
+    return await Promise.race([work, deadline]);
   } finally {
     clearTimeout(timer);
     outer?.removeEventListener("abort", onAbort);
+    work.catch(() => {});
   }
 }
 
@@ -109,7 +132,7 @@ async function callGemini(model: string, req: LlmRequest): Promise<LlmResponse> 
     req.timeoutMs,
     req.signal,
   );
-  const raw = await res.text();
+  const raw = res.text;
   if (!res.ok) throw classifyHttp(res.status, raw, res.headers.get("retry-after"));
   let data: {
     candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] }; finishReason?: string }[];
@@ -161,7 +184,7 @@ async function callOpenAiCompatible(provider: "groq" | "openrouter", model: stri
   };
   if (provider === "groq" && /gpt-oss|qwen3|deepseek-r1/.test(model)) body.reasoning_effort = "low";
   const res = await timedFetch(url, { method: "POST", headers, body: JSON.stringify(body) }, req.timeoutMs, req.signal);
-  const raw = await res.text();
+  const raw = res.text;
   if (!res.ok) {
     // Some free models reject json mode; caller may retry without it via a different chain entry.
     throw classifyHttp(res.status, raw, res.headers.get("retry-after"));

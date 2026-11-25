@@ -187,3 +187,20 @@ describe("CTA and targeting guards", () => {
     expect(() => verifyOutput({ ...goodOutput, email: { ...goodOutput.email, opener: "Hi Priya,\n\nAt the $10K-$50K MRR stage, founders juggle a lot of things and the numbers slip through the cracks.\n\nWorth a look?" } }, sources, "Alex")).toThrow();
   });
 });
+
+describe("rate limit with short retry-after", () => {
+  it("waits and retries the same model once", async () => {
+    let n = 0;
+    behaviour.primary = async () => {
+      throw new LlmError("busy", "overloaded", 503);
+    };
+    behaviour.secondary = async () => {
+      n++;
+      if (n === 1) throw new LlmError("Rate limit reached, try again in 1.2s", "rate_limit", 429, 300);
+      return ok()();
+    };
+    const r = await generateOutreach({ ...base, budgetMs: 40_000 });
+    expect(r.model).toBe("secondary");
+    expect(calls.filter((c) => c === "secondary")).toHaveLength(2);
+  });
+});
