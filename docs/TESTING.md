@@ -34,6 +34,8 @@ These were run on the production deployment (`/api/selftest`, mode `full`, which
 | savvycal.com | 30 pages. Vendor Calendly links on help/pricing pages are no longer treated as the company's booking link |
 | usefathom.com | 30 pages, 0 failed. 4 founders found. Best contact was a general inbox (no founder email is published). Gemini Flash hit its daily free quota, Groq gpt-oss-120b wrote the email, 5.3s end to end |
 | tuple.app (via the UI) | 9.3s from submit to the finished draft page |
+| baremetrics.com (via the UI, Groq first) | 9.2s. Founder email found (CEO, matched by name on the about page, mail server verified) and used as the recipient |
+| simpleanalytics.com (via the UI) | 17.1s. No email on the site, so the composer asks for a recipient and points to the other contact methods. This run caught gpt-oss writing a 【S1】 source tag, which is now stripped (unit test added) |
 
 ### Failure cases
 
@@ -65,6 +67,8 @@ Run with Playwright (Chromium) against the production URL:
 - Editing the subject and pressing **Open in Gmail** opens a Gmail compose URL with the edited subject and the found address in `to`.
 - The usage page shows tokens, success rate, latency, estimated spend and free-tier headroom. The guide and settings pages return 200.
 - On an iPhone 13 viewport there is no horizontal overflow.
+- **CSV import** of a list with a site researched earlier today, a junk row, a domain that doesn't exist and a new site: the junk row is reported as skipped, the first site shows "Already researched" with a link, the bad domain shows "could not be found", and the new site completes. The queue keeps going after a per-site failure.
+- **CSV export**: both files download as `text/csv` with a dated filename. The companies file has one row per company, and the contacts file lists the founder email first with its tier, confidence and source page. Without a login the export returns 401.
 - No page errors or console errors throughout.
 
 ## Running the live checks yourself
