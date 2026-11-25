@@ -248,10 +248,16 @@ export async function crawlSite(input: string, opts: CrawlOptions = {}): Promise
     }
   }
 
-  // 2. Sitemap + common paths
-  const sitemapUrls = await fetchSitemapUrls(origin, robots, siteHost, deadline);
-  for (const u of sitemapUrls) enqueue(u, "sitemap");
-  for (const p of GUESS_PATHS) enqueue(new URL(p, origin), "guess");
+  // 2. Sitemap + common paths (skipped when the server itself is unreachable / has broken TLS,
+  // since every other page on it would fail the same way).
+  const serverBroken = !home && homeError && (homeError.kind === "network" || homeError.kind === "timeout");
+  if (!serverBroken) {
+    const sitemapUrls = await fetchSitemapUrls(origin, robots, siteHost, deadline);
+    for (const u of sitemapUrls) enqueue(u, "sitemap");
+    for (const p of GUESS_PATHS) enqueue(new URL(p, origin), "guess");
+  } else {
+    queue.length = 0;
+  }
   const pagesFound = seen.size;
 
   // 3. Prioritised BFS with bounded concurrency.

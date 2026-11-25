@@ -221,6 +221,12 @@ export async function runResearch(
       );
     }
 
+    const totalWords = okPages.reduce((n, p) => n + (p.extract?.wordCount ?? 0), 0);
+    if (okPages.length && totalWords < 25) {
+      const msg = `The website has almost no readable text (${totalWords} words)${crawl.errors[0] ? `. ${crawl.errors[0]}` : ""}`;
+      await fail(msg, crawl.errors);
+      throw new HttpError(422, `${msg} There isn't enough real information to write a truthful email, so none was written.`, { companyId });
+    }
     if (!okPages.length) {
       const msg = crawl.errors[0] ?? "No readable pages were found on this website.";
       await fail(msg, crawl.errors.slice(1));
