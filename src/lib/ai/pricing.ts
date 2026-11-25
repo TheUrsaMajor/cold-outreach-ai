@@ -14,6 +14,7 @@ const DEFAULT_PRICES: Record<string, Price> = {
   "gemini-flash-lite-latest": { in: 0.1, out: 0.4 },
   "gemma-4-31b-it": { in: 0, out: 0 },
   "llama-3.3-70b-versatile": { in: 0.59, out: 0.79 },
+  "qwen/qwen3.8-27b": { in: 0.29, out: 0.59 },
   "llama-3.1-8b-instant": { in: 0.05, out: 0.08 },
   "openai/gpt-oss-120b": { in: 0.15, out: 0.6 },
   "openai/gpt-oss-20b": { in: 0.075, out: 0.3 },
@@ -41,7 +42,8 @@ export function estimateCostUsd(model: string, promptTokens: number, completionT
 export const FREE_TIER_LIMITS: Record<string, { rpm?: number; rpd?: number; tpm?: number; note: string }> = {
   "gemini-3.5-flash": { rpm: 10, rpd: 250, tpm: 250_000, note: "Google AI Studio free tier (approx.)" },
   "gemini-3.5-flash-lite": { rpm: 15, rpd: 1000, tpm: 250_000, note: "Google AI Studio free tier (approx.)" },
-  "llama-3.3-70b-versatile": { rpm: 30, rpd: 1000, tpm: 12_000, note: "Groq free tier" },
+  "qwen/qwen3.8-27b": { rpm: 60, rpd: 1000, tpm: 6_000, note: "Groq free tier (approx.)" },
   "openai/gpt-oss-120b": { rpm: 30, rpd: 1000, tpm: 8_000, note: "Groq free tier" },
-  "meta-llama/llama-3.3-70b-instruct:free": { rpm: 20, rpd: 50, note: "OpenRouter free models: 50/day, 1000/day with $10 credit" },
+  "nvidia/nemotron-3-ultra-550b-a55b:free": { rpm: 20, rpd: 50, note: "OpenRouter free models share 50/day (1000/day with $10 credit)" },
+  "google/gemma-4-31b-it:free": { rpm: 20, rpd: 50, note: "OpenRouter free models share 50/day (1000/day with $10 credit)" },
 };

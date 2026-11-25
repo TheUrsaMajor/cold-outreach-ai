@@ -200,9 +200,10 @@ export async function callModel(spec: ModelSpec, req: LlmRequest): Promise<LlmRe
 export const DEFAULT_CHAIN: ModelSpec[] = [
   { provider: "gemini", model: "gemini-3.5-flash" },
   { provider: "groq", model: "openai/gpt-oss-120b" },
-  { provider: "groq", model: "llama-3.3-70b-versatile" },
+  { provider: "groq", model: "qwen/qwen3.8-27b" },
   { provider: "gemini", model: "gemini-3.5-flash-lite" },
-  { provider: "openrouter", model: "meta-llama/llama-3.3-70b-instruct:free" },
+  { provider: "openrouter", model: "nvidia/nemotron-3-ultra-550b-a55b:free" },
+  { provider: "openrouter", model: "google/gemma-4-31b-it:free" },
 ];
 
 export function parseChain(value: string | undefined): ModelSpec[] {

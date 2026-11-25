@@ -24,9 +24,9 @@ A web app that researches a prospect's public website, finds the best founder co
 |---|---|---|
 | 1 | **Gemini 3.5 Flash** (Google AI Studio) | Best writing quality in the free tier, 1M-token context (fits an entire small website), JSON mode, about 4 s with minimal thinking |
 | 2 | Groq **gpt-oss-120b** | Different vendor (independent outage), very fast, strong reasoning, free tier |
-| 3 | Groq **Llama 3.3 70B** | Separate quota from #2, good copywriting |
+| 3 | Groq **Qwen 3.8 27B** | Separate quota from #2, strong instruction following |
 | 4 | Gemini 3.5 **Flash Lite** | Cheap and fast, separate quota from #1 |
-| 5 | OpenRouter free Llama 3.3 70B | A third vendor |
+| 5, 6 | OpenRouter free **Nemotron 3 Ultra**, then **Gemma 4 31B** | A third vendor |
 | 6 | Deterministic template | Built only from the site's own description, so **a draft is always produced** |
 
 The model layer is provider-agnostic (`src/lib/ai/providers.ts`). Change the order or models with one env var, e.g. `LLM_CHAIN="groq:openai/gpt-oss-120b,gemini:gemini-3.5-flash"`. Each provider gets a context budget that fits its token limits. Invalid JSON, timeouts, 429s and 5xx errors move to the next model, and a bad key or exhausted daily quota skips that provider's other models.

@@ -180,7 +180,7 @@ export type GenerateOptions = {
   onAttempt?: (a: Attempt) => void | Promise<void>;
 };
 
-const CONTEXT_CHARS: Record<string, number> = { gemini: 60_000, groq: 18_000, openrouter: 30_000 };
+const CONTEXT_CHARS: Record<string, number> = { gemini: 60_000, groq: 14_000, openrouter: 30_000 };
 
 /**
  * Runs the model chain until one returns a valid, source-grounded result.
@@ -213,7 +213,7 @@ export async function generateOutreach(opts: GenerateOptions): Promise<Generatio
     const timeoutMs = Math.max(3000, Math.min(isLast ? remaining - 1000 : spec.provider === "gemini" && !/lite/.test(spec.model) ? 25_000 : 18_000, remaining - 3000));
     const t0 = Date.now();
     try {
-      const res = await callModel(spec, { system: sys, user, temperature: 0.7, maxOutputTokens: 3000, timeoutMs });
+      const res = await callModel(spec, { system: sys, user, temperature: 0.7, maxOutputTokens: spec.provider === "groq" ? 2000 : 3000, timeoutMs });
       const latencyMs = Date.now() - t0;
       const costUsd = estimateCostUsd(spec.model, res.promptTokens, res.completionTokens);
       let verified: ReturnType<typeof verifyOutput>;
